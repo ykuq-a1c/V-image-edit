@@ -297,7 +297,7 @@
       <div class="card">
         <img id="result-img" src="" alt="result">
       </div>
-      <button class="btn btn-primary" onclick="downloadResult()">ダウンロード</button>
+      <button class="btn btn-primary" onclick="saveResult()">保存 / 共有</button>
       <div class="btn-row">
         <button class="btn btn-secondary" onclick="goNewImage()">別の画像を編集</button>
         <button class="btn btn-secondary" onclick="goSameImage()">同じ画像を編集</button>
@@ -469,7 +469,21 @@
   }
 
   // ---------- Result actions ----------
-  function downloadResult() {
+  async function saveResult() {
+    if (navigator.canShare) {
+      try {
+        const res = await fetch(S.resultBlobUrl);
+        const blob = await res.blob();
+        const file = new File([blob], S.resultFilename, { type: blob.type });
+        if (navigator.canShare({ files: [file] })) {
+          await navigator.share({ files: [file] });
+          return;
+        }
+      } catch (e) {
+        if (e.name === 'AbortError') return; // ユーザーがキャンセル
+        // 非対応の場合はフォールバック
+      }
+    }
     const a = document.createElement('a');
     a.href = S.resultBlobUrl;
     a.download = S.resultFilename;
