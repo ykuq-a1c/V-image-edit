@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Venice Image Editor</title>
+  <title>V image editor</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -237,8 +237,8 @@
 <body>
 <div class="wrap">
   <header>
-    <h1>Venice Image Editor</h1>
-    <p>grok-imagine-edit via Venice AI</p>
+    <h1>V image editor</h1>
+    <p>grok-imagine-edit via V API</p>
   </header>
 
   <!-- ===== Input View ===== -->
@@ -247,7 +247,7 @@
 
       <!-- API Key -->
       <div class="card">
-        <div class="label">Venice API Key</div>
+        <div class="label">V API Key</div>
         <input type="password" id="api-key" placeholder="xxxxxxxx..." autocomplete="off" spellcheck="false">
       </div>
 
@@ -288,7 +288,7 @@
   <!-- ===== Loading View ===== -->
   <div id="view-loading" hidden>
     <div class="spinner"></div>
-    <div class="loading-text">Venice API に送信中...</div>
+    <div class="loading-text">V API に送信中...</div>
   </div>
 
   <!-- ===== Result View ===== -->
@@ -300,7 +300,7 @@
       <button class="btn btn-primary" onclick="saveResult()">ダウンロード</button>
       <div class="btn-row">
         <button class="btn btn-secondary" onclick="goNewImage()">別の画像を編集</button>
-        <button class="btn btn-secondary" onclick="goSameImage()">同じ画像を編集</button>
+        <button class="btn btn-secondary" onclick="goSameImage()">同じ元画像を編集</button>
       </div>
     </div>
   </div>
@@ -462,9 +462,9 @@
     if (msg.startsWith('429|'))  return 'レート制限中です。少し待ってから再試行してください。';
     if (msg.startsWith('400|') || msg.startsWith('451|'))
       return 'リクエストが拒否されました（モデレーション）。プロンプトや画像を変えてみてください。';
-    if (msg.startsWith('5'))     return 'Venice側でエラーが発生しました。しばらく後に再試行してください。';
+    if (msg.startsWith('5'))     return 'V側でエラーが発生しました。しばらく後に再試行してください。';
     if (/fetch|NetworkError|CORS/i.test(msg))
-      return 'ネットワークエラー。VeniceのAPIがブラウザからのアクセスをブロックしている可能性があります（CORS）。';
+      return 'ネットワークエラー。V APIがブラウザからのアクセスをブロックしている可能性があります（CORS）。';
     return 'エラー: ' + msg;
   }
 
