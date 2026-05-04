@@ -470,7 +470,8 @@
 
   // ---------- Result actions ----------
   async function saveResult() {
-    if (navigator.canShare) {
+    const isTouchDevice = window.matchMedia('(pointer: coarse)').matches;
+    if (isTouchDevice && navigator.canShare) {
       try {
         const res = await fetch(S.resultBlobUrl);
         const blob = await res.blob();
@@ -480,8 +481,7 @@
           return;
         }
       } catch (e) {
-        if (e.name === 'AbortError') return; // ユーザーがキャンセル
-        // 非対応の場合はフォールバック
+        if (e.name === 'AbortError') return;
       }
     }
     const a = document.createElement('a');
