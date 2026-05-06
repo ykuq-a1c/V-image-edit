@@ -63,6 +63,37 @@
       margin-top: 4px;
     }
 
+    .quality-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .quality-toggle {
+      display: flex;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .quality-btn {
+      padding: 6px 20px;
+      background: transparent;
+      border: none;
+      color: var(--muted);
+      font-size: 0.9rem;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .quality-btn.active {
+      background: var(--accent);
+      color: #fff;
+    }
+    .credit-info {
+      color: var(--muted);
+      font-size: 0.8rem;
+    }
+
     .card {
       background: var(--surface);
       border: 1px solid var(--border);
@@ -285,6 +316,15 @@
         <textarea id="prompt" placeholder="例: Make the background a snowy mountain landscape"></textarea>
       </div>
 
+      <!-- Quality -->
+      <div class="quality-row">
+        <div class="quality-toggle">
+          <button type="button" class="quality-btn active" id="q-1k" onclick="setQuality('1K')">1K</button>
+          <button type="button" class="quality-btn" id="q-2k" onclick="setQuality('2K')">2K</button>
+        </div>
+        <div id="credit-info" class="credit-info">1枚 = 4クレジット消費</div>
+      </div>
+
       <!-- Error -->
       <div id="error-box" class="error" hidden></div>
 
@@ -316,6 +356,17 @@
 </div>
 
 <script>
+  // ---------- Quality selection ----------
+  let selectedResolution = '1K';
+
+  function setQuality(q) {
+    selectedResolution = q;
+    document.getElementById('q-1k').classList.toggle('active', q === '1K');
+    document.getElementById('q-2k').classList.toggle('active', q === '2K');
+    document.getElementById('credit-info').textContent =
+      q === '1K' ? '1枚 = 4クレジット消費' : '1枚 = 6クレジット消費';
+  }
+
   // ---------- In-memory state ----------
   const S = {
     apiKey: '',
@@ -454,6 +505,7 @@
         model: 'grok-imagine-edit',
         prompt: prompt,
         image: 'data:' + mime + ';base64,' + imageB64,
+        resolution: selectedResolution,
         safe_mode: false,
       }),
     });
