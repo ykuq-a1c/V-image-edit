@@ -76,7 +76,7 @@
       overflow: hidden;
     }
     .quality-btn {
-      padding: 6px 20px;
+      padding: 5px 14px;
       background: transparent;
       border: none;
       color: var(--muted);
@@ -270,7 +270,7 @@
       border-radius: 10px;
     }
 
-    [hidden] { display: none !important; }
+[hidden] { display: none !important; }
   </style>
 </head>
 <body>
@@ -298,7 +298,7 @@
           <input type="file" id="file-input" accept="image/jpeg,image/png,image/webp">
           <div class="dropzone-icon">🖼️</div>
           <div class="dropzone-main">画像をドロップ、またはタップして選択</div>
-          <div class="dropzone-sub">JPG / PNG / WebP（2MB超は自動リサイズ）</div>
+          <div class="dropzone-sub">JPG / PNG / WebP（大きい画像は自動リサイズ）</div>
         </div>
 
         <div id="preview-area" hidden>
@@ -316,8 +316,12 @@
         <textarea id="prompt" placeholder="例: Make the background a snowy mountain landscape"></textarea>
       </div>
 
-      <!-- Quality -->
+      <!-- Model + Quality -->
       <div class="quality-row">
+        <div class="quality-toggle">
+          <button type="button" class="quality-btn active" id="m-grok" onclick="setModel('grok-imagine-edit')">Grok</button>
+          <button type="button" class="quality-btn" id="m-hq" onclick="setModel('grok-imagine-quality-edit')">GHQ</button>
+        </div>
         <div class="quality-toggle">
           <button type="button" class="quality-btn active" id="q-1k" onclick="setQuality('1K')">1K</button>
           <button type="button" class="quality-btn" id="q-2k" onclick="setQuality('2K')">2K</button>
@@ -356,30 +360,43 @@
 </div>
 
 <script>
-  // ---------- Quality selection ----------
+  // ---------- Model + Quality selection ----------
+  let selectedModel = 'grok-imagine-edit';
   let selectedResolution = '1K';
+  function updateCreditInfo() {
+    let text;
+    if (selectedModel === 'grok-imagine-edit') {
+      text = selectedResolution === '1K' ? '1枚 = 4クレジット消費' : '1枚 = 6クレジット消費';
+    } else {
+      text = selectedResolution === '1K' ? '1枚 = 10クレジット消費' : '1枚 = 12クレジット消費';
+    }
+    document.getElementById('credit-info').textContent = text;
+  }
+
+  function setModel(m) {
+    selectedModel = m;
+    document.getElementById('m-grok').classList.toggle('active', m === 'grok-imagine-edit');
+    document.getElementById('m-hq').classList.toggle('active', m === 'grok-imagine-quality-edit');
+    updateCreditInfo();
+  }
 
   function setQuality(q) {
     selectedResolution = q;
     document.getElementById('q-1k').classList.toggle('active', q === '1K');
     document.getElementById('q-2k').classList.toggle('active', q === '2K');
-    document.getElementById('credit-info').textContent =
-      q === '1K' ? '1枚 = 4クレジット消費' : '1枚 = 6クレジット消費';
+    updateCreditInfo();
   }
 
   // ---------- In-memory state ----------
   const S = {
     apiKey: '',
-    imageB64: '',
-    imageMime: '',
+    rawFile: null,
     imagePreviewUrl: '',
     imageFilename: '',
     prompt: '',
     resultBlobUrl: '',
-    resultFilename: 'venice_edit.jpg',
+    resultFilename: 'Vedit.jpg',
   };
-
-  const TARGET_BYTES = 2 * 1024 * 1024;
 
   // ---------- View ----------
   function showView(id) {
@@ -404,7 +421,7 @@
   });
 
   function clearImage() {
-    S.imageB64 = ''; S.imageMime = ''; S.imagePreviewUrl = ''; S.imageFilename = '';
+    S.rawFile = null; S.imagePreviewUrl = ''; S.imageFilename = '';
     document.getElementById('preview-area').hidden = true;
     document.getElementById('dropzone').hidden = false;
     fileInput.value = '';
@@ -413,17 +430,11 @@
   async function processFile(file) {
     const ok = ['image/jpeg', 'image/png', 'image/webp'];
     if (!ok.includes(file.type)) { showError('JPG・PNG・WebP の画像を選択してください'); return; }
-    try {
-      const { b64, mime } = await toResizedB64(file);
-      S.imageB64 = b64;
-      S.imageMime = mime;
-      S.imageFilename = file.name;
-      S.imagePreviewUrl = URL.createObjectURL(file);
-      restoreImagePreview(S.imagePreviewUrl, file.name);
-      hideError();
-    } catch (e) {
-      showError('画像の読み込みに失敗: ' + e.message);
-    }
+    S.rawFile = file;
+    S.imageFilename = file.name;
+    S.imagePreviewUrl = URL.createObjectURL(file);
+    restoreImagePreview(S.imagePreviewUrl, file.name);
+    hideError();
   }
 
   function restoreImagePreview(url, filename) {
@@ -433,26 +444,19 @@
     document.getElementById('dropzone').hidden = true;
   }
 
-  async function toResizedB64(file) {
-    const mime = (file.type === 'image/png') ? 'image/png' : 'image/jpeg';
-    if (file.size <= TARGET_BYTES) {
+  async function toResizedB64(file, limit) {
+    const mime = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
+    const bitmap = await createImageBitmap(file);
+    const W = bitmap.width, H = bitmap.height;
+    if (W + H <= limit) {
       return { b64: await readAsB64(file), mime: file.type };
     }
-    // Resize via canvas
-    const bitmap = await createImageBitmap(file);
-    const scale = Math.sqrt(TARGET_BYTES / file.size);
+    const scale = limit / (W + H);
     const canvas = document.createElement('canvas');
-    canvas.width  = Math.max(1, Math.floor(bitmap.width  * scale));
-    canvas.height = Math.max(1, Math.floor(bitmap.height * scale));
+    canvas.width  = Math.round(W * scale);
+    canvas.height = Math.round(H * scale);
     canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-
-    let quality = 0.85;
-    let blob;
-    do {
-      blob = await new Promise(res => canvas.toBlob(res, mime, quality));
-      quality = Math.max(0.2, quality - 0.1);
-    } while (blob.size > TARGET_BYTES && quality > 0.2);
-
+    const blob = await new Promise(res => canvas.toBlob(res, mime, mime === 'image/jpeg' ? 0.9 : undefined));
     return { b64: await readAsB64(blob), mime };
   }
 
@@ -471,7 +475,7 @@
     const prompt  = document.getElementById('prompt').value.trim();
 
     if (!apiKey)        { showError('APIキーを入力してください'); return; }
-    if (!S.imageB64)    { showError('画像を選択してください'); return; }
+    if (!S.rawFile)     { showError('画像を選択してください'); return; }
     if (!prompt)        { showError('プロンプトを入力してください'); return; }
 
     S.apiKey = apiKey;
@@ -480,12 +484,14 @@
     showView('view-loading');
 
     try {
-      const blob = await callVenice(apiKey, S.imageB64, S.imageMime, prompt);
+      const limit = selectedResolution === '1K' ? 2100 : 4200;
+      const { b64, mime } = await toResizedB64(S.rawFile, limit);
+      const blob = await callVenice(apiKey, b64, mime, prompt);
       if (S.resultBlobUrl) URL.revokeObjectURL(S.resultBlobUrl);
       S.resultBlobUrl = URL.createObjectURL(blob);
       const _ext = blob.type === 'image/png' ? '.png' : blob.type === 'image/webp' ? '.webp' : '.jpg';
       const _stem = S.imageFilename ? S.imageFilename.replace(/\.[^.]+$/, '') : 'image';
-      S.resultFilename = _stem + 'venice_edit' + _ext;
+      S.resultFilename = _stem + 'Vedit' + _ext;
       document.getElementById('result-img').src = S.resultBlobUrl;
       showView('view-result');
     } catch (e) {
@@ -502,7 +508,7 @@
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'grok-imagine-edit',
+        model: selectedModel,
         prompt: prompt,
         image: 'data:' + mime + ';base64,' + imageB64,
         resolution: selectedResolution,
