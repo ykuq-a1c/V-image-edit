@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>V image editor</title>
+  <title>V tools via API</title>
   <!-- Google tag (gtag.js) -->
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-ZPGJSV7MNR"></script>
   <script>
@@ -92,6 +92,127 @@
     .credit-info {
       color: var(--muted);
       font-size: 0.8rem;
+    }
+
+    .aspect-row {
+      display: flex;
+      align-items: center;
+    }
+
+    .history-header {
+      color: var(--muted);
+      font-size: 0.75rem;
+      margin-bottom: 6px;
+    }
+    .gallery-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+    }
+    .gallery-thumb {
+      width: 100%;
+      aspect-ratio: 1;
+      object-fit: cover;
+      border-radius: 6px;
+      cursor: pointer;
+      display: block;
+      border: 2px solid transparent;
+      transition: border-color 0.15s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .gallery-thumb:hover {
+      border-color: var(--accent);
+    }
+    .gallery-item-wrap {
+      position: relative;
+    }
+    .gallery-placeholder {
+      width: 100%;
+      aspect-ratio: 1;
+      border-radius: 6px;
+      background: var(--surface2);
+      display: block;
+      cursor: default;
+    }
+    .gallery-thumb-pending {
+      opacity: 0.35;
+      cursor: default;
+    }
+    .gallery-generating-label {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.7rem;
+      font-weight: 700;
+      color: var(--text);
+      letter-spacing: 0.05em;
+      pointer-events: none;
+    }
+
+    .i2v-queue-header {
+      color: var(--muted);
+      font-size: 0.75rem;
+      margin-bottom: 6px;
+    }
+    .i2v-queue-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 8px 12px;
+    }
+    .i2v-thumb {
+      width: 52px;
+      height: 52px;
+      object-fit: cover;
+      border-radius: 6px;
+      flex-shrink: 0;
+    }
+    .i2v-info {
+      flex: 1;
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+    .i2v-status-pending {
+      font-size: 0.8rem;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+    .i2v-status-done {
+      font-size: 0.8rem;
+      color: var(--accent);
+      white-space: nowrap;
+      cursor: pointer;
+      background: none;
+      border: none;
+      padding: 0;
+      font-family: inherit;
+      text-decoration: underline;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .i2v-status-failed {
+      font-size: 0.8rem;
+      color: var(--danger);
+      white-space: nowrap;
+    }
+    .aspect-select {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-size: 0.9rem;
+      padding: 5px 10px;
+      outline: none;
+      cursor: pointer;
+      transition: border-color 0.15s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .aspect-select:focus {
+      border-color: var(--accent);
     }
 
     .card {
@@ -219,6 +340,8 @@
     }
     .btn-primary:hover { background: var(--accent-h); }
     .btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
+    .btn-primary.btn-confirm { background: #0ea5e9; }
+    .btn-primary.btn-confirm:hover { background: #0284c7; }
     .btn-secondary {
       background: var(--surface2);
       color: var(--text);
@@ -276,13 +399,21 @@
 <body>
 <div class="wrap">
   <header>
-    <h1>V image editor</h1>
-    <p>grok-imagine-edit via V API</p>
+    <h1>V tools via API</h1>
   </header>
 
   <!-- ===== Input View ===== -->
   <div id="view-input">
     <div style="display:flex;flex-direction:column;gap:14px;">
+
+      <!-- Mode Toggle -->
+      <div class="quality-row">
+        <div class="quality-toggle">
+          <button type="button" class="quality-btn" id="mode-t2i" onclick="setMode('t2i')">T2I</button>
+          <button type="button" class="quality-btn active" id="mode-i2i" onclick="setMode('i2i')">I2I</button>
+          <button type="button" class="quality-btn" id="mode-i2v" onclick="setMode('i2v')">I2V</button>
+        </div>
+      </div>
 
       <!-- API Key -->
       <div class="card">
@@ -291,7 +422,7 @@
       </div>
 
       <!-- Image Upload -->
-      <div class="card">
+      <div class="card" id="image-card">
         <div class="label">元画像</div>
 
         <div id="dropzone" class="dropzone">
@@ -316,11 +447,11 @@
         <textarea id="prompt" placeholder="例: Make the background a snowy mountain landscape"></textarea>
       </div>
 
-      <!-- Model + Quality -->
-      <div class="quality-row">
+      <!-- Model + Quality (T2I / I2I) -->
+      <div class="quality-row" id="quality-row-main">
         <div class="quality-toggle">
-          <button type="button" class="quality-btn active" id="m-grok" onclick="setModel('grok-imagine-edit')">Grok</button>
-          <button type="button" class="quality-btn" id="m-hq" onclick="setModel('grok-imagine-quality-edit')">GHQ</button>
+          <button type="button" class="quality-btn active" id="m-grok" onclick="setModel(MODE_MODELS[selectedMode]?.grok||'grok-imagine-edit')">Grok</button>
+          <button type="button" class="quality-btn" id="m-hq" onclick="setModel(MODE_MODELS[selectedMode]?.hq||'grok-imagine-quality-edit')">GHQ</button>
         </div>
         <div class="quality-toggle">
           <button type="button" class="quality-btn active" id="q-1k" onclick="setQuality('1K')">1K</button>
@@ -329,11 +460,49 @@
         <div id="credit-info" class="credit-info">1枚 = 4クレジット消費</div>
       </div>
 
+      <!-- I2V Controls -->
+      <div class="quality-row" id="i2v-row" hidden>
+        <div class="quality-toggle">
+          <button type="button" class="quality-btn active" id="v-480p" onclick="setI2VResolution('480p')">480p</button>
+          <button type="button" class="quality-btn" id="v-720p" onclick="setI2VResolution('720p')">720p</button>
+        </div>
+        <select class="aspect-select" id="i2v-duration" onchange="updateI2VCreditInfo()">
+          <option value="5s">5s</option>
+          <option value="10s">10s</option>
+          <option value="15s">15s</option>
+        </select>
+        <div id="i2v-credit-info" class="credit-info">32クレジット消費</div>
+      </div>
+
+      <!-- Aspect Ratio (T2I only) -->
+      <div class="aspect-row" id="aspect-row" hidden>
+        <select class="aspect-select" id="aspect-select">
+          <option value="1:1">Square (1:1)</option>
+          <option value="16:9">Cinema (16:9)</option>
+          <option value="9:16">Tall (9:16)</option>
+          <option value="3:4">Instagram (3:4)</option>
+          <option value="3:2">Landscape (3:2)</option>
+          <option value="2:3">Portrait (2:3)</option>
+        </select>
+      </div>
+
       <!-- Error -->
       <div id="error-box" class="error" hidden></div>
 
       <!-- Send -->
-      <button class="btn btn-primary" id="send-btn" onclick="handleSend()">編集を送信</button>
+      <button class="btn btn-primary" id="send-btn" onclick="handleSendClick()">送信</button>
+
+      <!-- History -->
+      <div id="history-section" hidden>
+        <div class="history-header">キューと履歴&nbsp;&nbsp;リロードで消えます。こまめに保存してください。</div>
+        <div class="gallery-grid" id="gallery-grid"></div>
+      </div>
+
+      <!-- I2V Queue -->
+      <div id="i2v-queue-section" hidden>
+        <div class="i2v-queue-header">キューと履歴&nbsp;&nbsp;リロードで全て消えます。こまめにダウンロードしてください。</div>
+        <div id="i2v-queue-list" style="display:flex;flex-direction:column;gap:6px;"></div>
+      </div>
     </div>
   </div>
 
@@ -343,40 +512,122 @@
     <div class="loading-text">V API に送信中...</div>
   </div>
 
-  <!-- ===== Result View ===== -->
+  <!-- ===== Result View (image) ===== -->
   <div id="view-result" hidden>
     <div style="display:flex;flex-direction:column;gap:14px;">
       <div class="card">
         <img id="result-img" src="" alt="result">
       </div>
       <button class="btn btn-primary" onclick="saveResult()">ダウンロード</button>
-      <div class="btn-row">
+      <button class="btn btn-secondary" id="btn-back-history" onclick="goBackFromHistory()" hidden>戻る</button>
+      <button class="btn btn-secondary" id="btn-back-t2i" onclick="goBackT2I()" hidden>生成画面に戻る</button>
+      <div class="btn-row" id="btn-row-i2i">
         <button class="btn btn-secondary" onclick="goNewImage()">別の画像を編集</button>
         <button class="btn btn-secondary" onclick="goSameImage()">同じ元画像を編集</button>
       </div>
     </div>
   </div>
 
+  <!-- ===== Result View (video) ===== -->
+  <div id="view-result-video" hidden>
+    <div style="display:flex;flex-direction:column;gap:14px;">
+      <div class="card" style="padding:0;overflow:hidden;">
+        <video id="result-video" controls style="width:100%;display:block;border-radius:var(--radius);"></video>
+      </div>
+      <button class="btn btn-primary" onclick="downloadVideo()">ダウンロード</button>
+      <button class="btn btn-secondary" onclick="goBackFromVideo()">生成画面に戻る</button>
+    </div>
+  </div>
+
 </div>
 
 <script>
+  // ---------- Mode ----------
+  let selectedMode = 'i2i';
+  const promptByMode = { t2i: '', i2i: '', i2v: '' };
+  const imageStateByMode = {
+    i2i: { rawFile: null, imagePreviewUrl: '', imageFilename: '' },
+    i2v: { rawFile: null, imagePreviewUrl: '', imageFilename: '' },
+  };
+
+  const MODE_MODELS = {
+    t2i: { grok: 'grok-imagine-image',        hq: 'grok-imagine-image-quality' },
+    i2i: { grok: 'grok-imagine-edit',          hq: 'grok-imagine-quality-edit'  },
+  };
+
+  function setMode(mode) {
+    // save current state
+    promptByMode[selectedMode] = document.getElementById('prompt').value;
+    if (selectedMode === 'i2i' || selectedMode === 'i2v') {
+      imageStateByMode[selectedMode] = {
+        rawFile: S.rawFile,
+        imagePreviewUrl: S.imagePreviewUrl,
+        imageFilename: S.imageFilename,
+      };
+    }
+
+    selectedMode = mode;
+    ['t2i','i2i','i2v'].forEach(m => {
+      document.getElementById('mode-' + m).classList.toggle('active', m === mode);
+    });
+    const hasImage = (mode === 'i2i' || mode === 'i2v');
+    document.getElementById('image-card').hidden    = !hasImage;
+    document.getElementById('quality-row-main').hidden = (mode === 'i2v');
+    document.getElementById('i2v-row').hidden          = (mode !== 'i2v');
+    document.getElementById('aspect-row').hidden       = (mode !== 't2i');
+
+    // restore prompt
+    document.getElementById('prompt').value = promptByMode[mode];
+
+    // restore image state
+    if (mode === 'i2i' || mode === 'i2v') {
+      const st = imageStateByMode[mode];
+      S.rawFile = st.rawFile;
+      S.imagePreviewUrl = st.imagePreviewUrl;
+      S.imageFilename = st.imageFilename;
+      if (S.rawFile) {
+        restoreImagePreview(S.imagePreviewUrl, S.imageFilename);
+      } else {
+        document.getElementById('preview-area').hidden = true;
+        document.getElementById('dropzone').hidden = false;
+      }
+    }
+
+    // reset model to grok default for this mode
+    if (MODE_MODELS[mode]) {
+      selectedModel = MODE_MODELS[mode].grok;
+    }
+    document.getElementById('m-grok').classList.add('active');
+    document.getElementById('m-hq').classList.remove('active');
+    updateCreditInfo();
+    hideError();
+    renderGallery();
+    renderI2VQueue();
+  }
+
   // ---------- Model + Quality selection ----------
   let selectedModel = 'grok-imagine-edit';
   let selectedResolution = '1K';
+
   function updateCreditInfo() {
-    let text;
-    if (selectedModel === 'grok-imagine-edit') {
-      text = selectedResolution === '1K' ? '1枚 = 4クレジット消費' : '1枚 = 6クレジット消費';
-    } else {
-      text = selectedResolution === '1K' ? '1枚 = 10クレジット消費' : '1枚 = 12クレジット消費';
+    const isHQ = selectedModel === (MODE_MODELS[selectedMode]?.hq);
+    const is2K = selectedResolution === '2K';
+    let text = '';
+    if (selectedMode === 't2i') {
+      const credits = isHQ ? (is2K ? 10 : 8) : (is2K ? 6 : 4);
+      text = `1枚 = ${credits}クレジット消費`;
+    } else if (selectedMode === 'i2i') {
+      const credits = isHQ ? (is2K ? 12 : 10) : (is2K ? 6 : 4);
+      text = `1枚 = ${credits}クレジット消費`;
     }
     document.getElementById('credit-info').textContent = text;
   }
 
   function setModel(m) {
     selectedModel = m;
-    document.getElementById('m-grok').classList.toggle('active', m === 'grok-imagine-edit');
-    document.getElementById('m-hq').classList.toggle('active', m === 'grok-imagine-quality-edit');
+    const models = MODE_MODELS[selectedMode] || MODE_MODELS.i2i;
+    document.getElementById('m-grok').classList.toggle('active', m === models.grok);
+    document.getElementById('m-hq').classList.toggle('active', m === models.hq);
     updateCreditInfo();
   }
 
@@ -385,6 +636,27 @@
     document.getElementById('q-1k').classList.toggle('active', q === '1K');
     document.getElementById('q-2k').classList.toggle('active', q === '2K');
     updateCreditInfo();
+  }
+
+  // ---------- I2V Resolution + Credit ----------
+  let selectedI2VResolution = '480p';
+
+  const I2V_CREDITS = {
+    '480p': { '5s': 32, '10s': 63, '15s': 95  },
+    '720p': { '5s': 44, '10s': 89, '15s': 133 },
+  };
+
+  function setI2VResolution(r) {
+    selectedI2VResolution = r;
+    document.getElementById('v-480p').classList.toggle('active', r === '480p');
+    document.getElementById('v-720p').classList.toggle('active', r === '720p');
+    updateI2VCreditInfo();
+  }
+
+  function updateI2VCreditInfo() {
+    const dur = document.getElementById('i2v-duration').value;
+    const credits = I2V_CREDITS[selectedI2VResolution][dur];
+    document.getElementById('i2v-credit-info').textContent = credits + 'クレジット消費';
   }
 
   // ---------- In-memory state ----------
@@ -399,10 +671,237 @@
   };
 
   // ---------- View ----------
+  let viewingFromHistory = false;
+
   function showView(id) {
-    ['view-input', 'view-loading', 'view-result'].forEach(v => {
+    ['view-input', 'view-loading', 'view-result', 'view-result-video'].forEach(v => {
       document.getElementById(v).hidden = (v !== id);
     });
+    if (id === 'view-result') {
+      const isT2I = selectedMode === 't2i';
+      document.getElementById('btn-back-history').hidden = !viewingFromHistory;
+      document.getElementById('btn-back-t2i').hidden     = viewingFromHistory || !isT2I;
+      document.getElementById('btn-row-i2i').hidden      = viewingFromHistory || isT2I;
+    }
+  }
+
+  // ---------- Image Queue ----------
+  const imageQueue = [];
+
+  function renderGallery() {
+    const grid = document.getElementById('gallery-grid');
+    grid.innerHTML = '';
+    imageQueue.forEach((item, idx) => {
+      const wrap = document.createElement('div');
+      wrap.className = 'gallery-item-wrap';
+
+      if (item.status === 'completed') {
+        const img = document.createElement('img');
+        img.src = item.resultBlobUrl;
+        img.className = 'gallery-thumb';
+        img.addEventListener('click', () => viewImageItem(idx));
+        wrap.appendChild(img);
+      } else {
+        if (item.sourceThumbUrl) {
+          const img = document.createElement('img');
+          img.src = item.sourceThumbUrl;
+          img.className = 'gallery-thumb gallery-thumb-pending';
+          wrap.appendChild(img);
+        } else {
+          const ph = document.createElement('div');
+          ph.className = 'gallery-placeholder';
+          wrap.appendChild(ph);
+        }
+        const label = document.createElement('div');
+        label.className = 'gallery-generating-label';
+        label.textContent = '生成中';
+        wrap.appendChild(label);
+      }
+
+      grid.appendChild(wrap);
+    });
+    document.getElementById('history-section').hidden =
+      imageQueue.length === 0 || selectedMode === 'i2v';
+  }
+
+  function viewImageItem(idx) {
+    const item = imageQueue[idx];
+    if (item.status !== 'completed') return;
+    S.resultBlobUrl  = item.resultBlobUrl;
+    S.resultFilename = item.filename;
+    document.getElementById('result-img').src = item.resultBlobUrl;
+    viewingFromHistory = true;
+    showView('view-result');
+  }
+
+  function goBackFromHistory() {
+    viewingFromHistory = false;
+    showView('view-input');
+  }
+
+  // ---------- I2V Queue ----------
+  const i2vQueue = [];
+
+  async function makeThumbUrl(file) {
+    const size = 60;
+    const bitmap = await createImageBitmap(file);
+    const { width: w, height: h } = bitmap;
+    const side = Math.min(w, h);
+    const sx = (w - side) / 2, sy = (h - side) / 2;
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = size;
+    canvas.getContext('2d').drawImage(bitmap, sx, sy, side, side, 0, 0, size, size);
+    return new Promise(r => canvas.toBlob(b => r(URL.createObjectURL(b)), 'image/jpeg', 0.8));
+  }
+
+  function renderI2VQueue() {
+    const list = document.getElementById('i2v-queue-list');
+    list.innerHTML = '';
+    i2vQueue.forEach(item => {
+      const row = document.createElement('div');
+      row.className = 'i2v-queue-item';
+
+      const thumb = document.createElement('img');
+      thumb.className = 'i2v-thumb';
+      thumb.src = item.thumbUrl;
+
+      const info = document.createElement('div');
+      info.className = 'i2v-info';
+      info.textContent = `${item.resolution} / ${item.duration}`;
+
+      let statusEl;
+      if (item.status === 'completed') {
+        statusEl = document.createElement('button');
+        statusEl.className = 'i2v-status-done';
+        statusEl.textContent = '生成完了 →';
+        statusEl.addEventListener('click', () => openVideoResult(item));
+      } else if (item.status === 'failed') {
+        statusEl = document.createElement('span');
+        statusEl.className = 'i2v-status-failed';
+        statusEl.textContent = item.errorMsg ? 'エラー: ' + item.errorMsg : 'エラー';
+      } else {
+        statusEl = document.createElement('span');
+        statusEl.className = 'i2v-status-pending';
+        statusEl.textContent = item.pollStatus ? item.pollStatus + '...' : '生成待ち...';
+      }
+
+      row.appendChild(thumb);
+      row.appendChild(info);
+      row.appendChild(statusEl);
+      list.appendChild(row);
+    });
+    document.getElementById('i2v-queue-section').hidden =
+      i2vQueue.length === 0 || selectedMode !== 'i2v';
+  }
+
+  async function startI2V(apiKey, prompt) {
+    const thumbUrl = await makeThumbUrl(S.rawFile);
+    const duration = document.getElementById('i2v-duration').value;
+    const item = {
+      thumbUrl,
+      resolution: selectedI2VResolution,
+      duration,
+      status: 'pending',
+      downloadUrl: null,
+      queueId: null,
+    };
+    i2vQueue.unshift(item);
+    renderI2VQueue();
+
+    try {
+      const { b64, mime } = await toResizedB64(S.rawFile, 2100);
+      const res = await fetch('https://api.venice.ai/api/v1/video/queue', {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + apiKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'grok-imagine-image-to-video-private',
+          prompt,
+          image_url: 'data:' + mime + ';base64,' + b64,
+          duration,
+          resolution: item.resolution,
+        }),
+      });
+      if (!res.ok) {
+        const txt = await res.text().catch(() => '');
+        throw new Error(res.status + '|' + txt);
+      }
+      const data = await res.json();
+      item.queueId = data.queue_id;
+      if (data.download_url) item.downloadUrl = data.download_url;
+      renderI2VQueue();
+      scheduleI2VPoll(item, apiKey);
+    } catch (e) {
+      item.status = 'failed';
+      renderI2VQueue();
+      showError(fmtError(e.message));
+    }
+  }
+
+  function scheduleI2VPoll(item, apiKey) {
+    setTimeout(async () => {
+      try {
+        const res = await fetch('https://api.venice.ai/api/v1/video/retrieve', {
+          method: 'POST',
+          headers: {
+            'Authorization': 'Bearer ' + apiKey,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ queue_id: item.queueId, model: 'grok-imagine-image-to-video-private' }),
+        });
+        const txt = await res.text();
+        if (!res.ok) {
+          if (res.status === 429) { scheduleI2VPoll(item, apiKey); return; }
+          item.status = 'failed';
+          item.errorMsg = res.status + ' ' + txt.slice(0, 80);
+          renderI2VQueue();
+          return;
+        }
+        const data = JSON.parse(txt);
+        const st = (data.status || '').toUpperCase();
+        if (st === 'COMPLETED') {
+          item.status = 'completed';
+          if (data.download_url) item.downloadUrl = data.download_url;
+          renderI2VQueue();
+        } else if (st === 'FAILED' || st === 'ERROR') {
+          item.status = 'failed';
+          renderI2VQueue();
+        } else {
+          item.pollStatus = st;
+          renderI2VQueue();
+          scheduleI2VPoll(item, apiKey);
+        }
+      } catch (e) {
+        scheduleI2VPoll(item, apiKey);
+      }
+    }, 8000);
+  }
+
+  function openVideoResult(item) {
+    document.getElementById('result-video').src = item.downloadUrl;
+    S.resultFilename = datetimeFilename('.mp4');
+    showView('view-result-video');
+  }
+
+  async function downloadVideo() {
+    const src = document.getElementById('result-video').src;
+    const res = await fetch(src);
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = S.resultFilename;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  }
+
+  function goBackFromVideo() {
+    const video = document.getElementById('result-video');
+    video.pause();
+    video.src = '';
+    showView('view-input');
   }
 
   // ---------- File handling ----------
@@ -470,37 +969,136 @@
   }
 
   // ---------- Send ----------
+  let i2vConfirmTimer = null;
+  let i2vConfirmPending = false;
+
+  function handleSendClick() {
+    if (selectedMode !== 'i2v') {
+      handleSend();
+      return;
+    }
+    if (i2vConfirmPending) {
+      clearTimeout(i2vConfirmTimer);
+      i2vConfirmTimer = null;
+      i2vConfirmPending = false;
+      resetSendButton();
+      handleSend();
+    } else {
+      const apiKey = document.getElementById('api-key').value.trim();
+      const prompt = document.getElementById('prompt').value.trim();
+      if (!apiKey) { showError('APIキーを入力してください'); return; }
+      if (!S.rawFile) { showError('画像を選択してください'); return; }
+      if (!prompt) { showError('プロンプトを入力してください'); return; }
+      hideError();
+      i2vConfirmPending = true;
+      const btn = document.getElementById('send-btn');
+      btn.textContent = '確認：送信してOK？';
+      btn.classList.add('btn-confirm');
+      i2vConfirmTimer = setTimeout(() => {
+        i2vConfirmPending = false;
+        i2vConfirmTimer = null;
+        resetSendButton();
+      }, 3000);
+    }
+  }
+
+  function lockSendButton() {
+    const btn = document.getElementById('send-btn');
+    btn.disabled = true;
+    btn.textContent = '送信中...';
+    btn.classList.remove('btn-confirm');
+    setTimeout(() => {
+      btn.disabled = false;
+      btn.textContent = '送信';
+    }, 2000);
+  }
+
+  function resetSendButton() {
+    const btn = document.getElementById('send-btn');
+    btn.textContent = '送信';
+    btn.classList.remove('btn-confirm');
+    btn.disabled = false;
+  }
+
   async function handleSend() {
     const apiKey = document.getElementById('api-key').value.trim();
     const prompt  = document.getElementById('prompt').value.trim();
 
-    if (!apiKey)        { showError('APIキーを入力してください'); return; }
-    if (!S.rawFile)     { showError('画像を選択してください'); return; }
-    if (!prompt)        { showError('プロンプトを入力してください'); return; }
+    if (!apiKey) { showError('APIキーを入力してください'); return; }
+    if (!prompt)  { showError('プロンプトを入力してください'); return; }
+    if ((selectedMode === 'i2i' || selectedMode === 'i2v') && !S.rawFile) { showError('画像を選択してください'); return; }
 
     S.apiKey = apiKey;
     S.prompt = prompt;
     hideError();
-    showView('view-loading');
+    lockSendButton();
+
+    if (selectedMode === 'i2v') {
+      startI2V(apiKey, prompt);
+      return;
+    }
+
+    sendImageRequest(apiKey, prompt);
+  }
+
+  async function sendImageRequest(apiKey, prompt) {
+    const mode = selectedMode;
+    const item = { status: 'pending', sourceThumbUrl: null, resultBlobUrl: null, filename: '' };
+    imageQueue.unshift(item);
+    renderGallery();
+
+    if (mode === 'i2i' && S.rawFile) {
+      makeThumbUrl(S.rawFile).then(url => { item.sourceThumbUrl = url; renderGallery(); });
+    }
 
     try {
-      const limit = selectedResolution === '1K' ? 2100 : 4200;
-      const { b64, mime } = await toResizedB64(S.rawFile, limit);
-      const blob = await callVenice(apiKey, b64, mime, prompt);
-      if (S.resultBlobUrl) URL.revokeObjectURL(S.resultBlobUrl);
-      S.resultBlobUrl = URL.createObjectURL(blob);
-      const _ext = blob.type === 'image/png' ? '.png' : blob.type === 'image/webp' ? '.webp' : '.jpg';
-      const _stem = S.imageFilename ? S.imageFilename.replace(/\.[^.]+$/, '') : 'image';
-      S.resultFilename = _stem + 'Vedit' + _ext;
-      document.getElementById('result-img').src = S.resultBlobUrl;
-      showView('view-result');
+      let blob;
+      if (mode === 't2i') {
+        blob = await callVeniceT2I(apiKey, prompt);
+        const _ext = blob.type === 'image/png' ? '.png' : blob.type === 'image/webp' ? '.webp' : '.jpg';
+        item.filename = datetimeFilename(_ext);
+      } else {
+        const limit = selectedResolution === '1K' ? 2100 : 4200;
+        const { b64, mime } = await toResizedB64(S.rawFile, limit);
+        blob = await callVeniceI2I(apiKey, b64, mime, prompt);
+        const _ext = blob.type === 'image/png' ? '.png' : blob.type === 'image/webp' ? '.webp' : '.jpg';
+        const _stem = S.imageFilename ? S.imageFilename.replace(/\.[^.]+$/, '') : 'image';
+        item.filename = _stem + 'Vedit' + _ext;
+      }
+      item.resultBlobUrl = URL.createObjectURL(blob);
+      item.status = 'completed';
+      renderGallery();
     } catch (e) {
-      showView('view-input');
+      imageQueue.splice(imageQueue.indexOf(item), 1);
+      renderGallery();
       showError(fmtError(e.message));
     }
   }
 
-  async function callVenice(apiKey, imageB64, mime, prompt) {
+  async function callVeniceT2I(apiKey, prompt) {
+    const res = await fetch('https://api.venice.ai/api/v1/image/generate', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + apiKey,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: selectedModel,
+        prompt: prompt,
+        resolution: selectedResolution,
+        aspect_ratio: document.getElementById('aspect-select').value,
+        safe_mode: false,
+        return_binary: true,
+      }),
+    });
+    if (!res.ok) {
+      const txt = await res.text().catch(() => '');
+      throw new Error(res.status + '|' + txt);
+    }
+    return await res.blob();
+  }
+
+  async function callVeniceI2I(apiKey, imageB64, mime, prompt) {
     const res = await fetch('https://api.venice.ai/api/v1/image/edit', {
       method: 'POST',
       headers: {
@@ -515,7 +1113,6 @@
         safe_mode: false,
       }),
     });
-
     if (!res.ok) {
       const txt = await res.text().catch(() => '');
       throw new Error(res.status + '|' + txt);
@@ -556,6 +1153,11 @@
     a.click();
   }
 
+  function goBackT2I() {
+    document.getElementById('prompt').value = S.prompt;
+    showView('view-input');
+  }
+
   function goNewImage() {
     clearImage();
     document.getElementById('prompt').value = S.prompt;
@@ -566,6 +1168,13 @@
     restoreImagePreview(S.imagePreviewUrl, S.imageFilename);
     document.getElementById('prompt').value = S.prompt;
     showView('view-input');
+  }
+
+  function datetimeFilename(ext) {
+    const d = new Date();
+    const pad = n => String(n).padStart(2, '0');
+    const s = String(d.getFullYear()) + pad(d.getMonth()+1) + pad(d.getDate()) + pad(d.getHours()) + pad(d.getMinutes());
+    return s + ext;
   }
 
   // ---------- Helpers ----------
