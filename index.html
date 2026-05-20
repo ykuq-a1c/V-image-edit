@@ -12,6 +12,7 @@
     gtag('js', new Date());
     gtag('config', 'G-ZPGJSV7MNR');
   </script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -103,6 +104,9 @@
       color: var(--muted);
       font-size: 0.75rem;
       margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
     }
     .gallery-grid {
       display: grid;
@@ -155,6 +159,105 @@
       color: var(--muted);
       font-size: 0.75rem;
       margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .sel-toggle-btn {
+      padding: 5px 11px;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--muted);
+      font-size: 0.75rem;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+      transition: background 0.15s, color 0.15s;
+      line-height: 1.4;
+    }
+    .sel-toggle-btn:hover { background: var(--surface2); color: var(--text); }
+
+    .sel-count {
+      color: var(--accent);
+      margin-left: 6px;
+    }
+
+    .sel-action-bar {
+      display: flex;
+      gap: 8px;
+      padding: 0 0 8px;
+    }
+    .sel-action-btn {
+      flex: 1;
+      padding: 9px 6px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--surface2);
+      color: var(--text);
+      font-size: 0.82rem;
+      cursor: pointer;
+      transition: background 0.15s, opacity 0.15s, border-color 0.15s, color 0.15s;
+      -webkit-tap-highlight-color: transparent;
+      white-space: nowrap;
+    }
+    .sel-action-btn:disabled { opacity: 0.3; cursor: default; }
+    .sel-action-btn:not(:disabled):active { background: var(--border); }
+    .sel-delete-btn.confirm {
+      background: var(--danger-bg);
+      border-color: var(--danger);
+      color: var(--danger);
+    }
+
+    .sel-check {
+      position: absolute;
+      top: 4px;
+      left: 4px;
+      width: 20px;
+      height: 20px;
+      background: rgba(0,0,0,0.45);
+      border: 2px solid rgba(255,255,255,0.6);
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      color: #fff;
+      z-index: 2;
+      pointer-events: none;
+    }
+    .gallery-item-wrap.selected .sel-check {
+      background: var(--accent);
+      border-color: var(--accent);
+    }
+    .gallery-item-wrap.selected .sel-check::after { content: '✓'; }
+    .gallery-item-wrap.selectable { cursor: pointer; }
+    .gallery-item-wrap.selected .gallery-thumb {
+      outline: 2.5px solid var(--accent);
+      outline-offset: -2px;
+    }
+
+    .i2v-sel-check {
+      width: 20px;
+      height: 20px;
+      flex-shrink: 0;
+      border: 2px solid var(--border);
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      background: var(--surface);
+      color: transparent;
+    }
+    .i2v-queue-item.selected .i2v-sel-check {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+    .i2v-queue-item.selected {
+      border-color: var(--accent);
+      background: rgba(124,58,237,0.1);
     }
     .i2v-queue-item {
       display: flex;
@@ -494,13 +597,29 @@
 
       <!-- History -->
       <div id="history-section" hidden>
-        <div class="history-header">キューと履歴&nbsp;&nbsp;リロードで消えます。こまめに保存してください。</div>
+        <div class="history-header">
+          <span>キューと履歴<span id="hist-sel-count" class="sel-count"></span></span>
+          <button class="sel-toggle-btn" id="hist-toggle-btn" onclick="toggleSelectionMode()">選択</button>
+        </div>
+        <div id="hist-action-bar" class="sel-action-bar" hidden>
+          <button class="sel-action-btn" id="hist-all-btn" onclick="toggleSelectAll()">全選択 ☑</button>
+          <button class="sel-action-btn" id="hist-save-btn" onclick="saveSelected()" disabled>保存 📥</button>
+          <button class="sel-action-btn sel-delete-btn" id="hist-del-btn" onclick="handleDeleteSelected()" disabled>削除 ✘</button>
+        </div>
         <div class="gallery-grid" id="gallery-grid"></div>
       </div>
 
       <!-- I2V Queue -->
       <div id="i2v-queue-section" hidden>
-        <div class="i2v-queue-header">キューと履歴&nbsp;&nbsp;リロードで全て消えます。こまめにダウンロードしてください。</div>
+        <div class="i2v-queue-header">
+          <span>キューと履歴<span id="i2v-sel-count" class="sel-count"></span></span>
+          <button class="sel-toggle-btn" id="i2v-toggle-btn" onclick="toggleSelectionMode()">選択</button>
+        </div>
+        <div id="i2v-action-bar" class="sel-action-bar" hidden>
+          <button class="sel-action-btn" id="i2v-all-btn" onclick="toggleSelectAll()">全選択 ☑</button>
+          <button class="sel-action-btn" id="i2v-save-btn" onclick="saveSelected()" disabled>保存 📥</button>
+          <button class="sel-action-btn sel-delete-btn" id="i2v-del-btn" onclick="handleDeleteSelected()" disabled>削除 ✘</button>
+        </div>
         <div id="i2v-queue-list" style="display:flex;flex-direction:column;gap:6px;"></div>
       </div>
     </div>
@@ -542,6 +661,149 @@
 </div>
 
 <script>
+  // ---------- IndexedDB ----------
+  const DB_NAME = 'vtools-history';
+  let _db = null;
+
+  function openDB() {
+    return new Promise((res, rej) => {
+      const req = indexedDB.open(DB_NAME, 1);
+      req.onupgradeneeded = e => {
+        e.target.result.createObjectStore('items', { keyPath: 'id', autoIncrement: true });
+      };
+      req.onsuccess = e => { _db = e.target.result; res(_db); };
+      req.onerror = () => rej(req.error);
+    });
+  }
+
+  function dbAdd(record) {
+    return new Promise((res, rej) => {
+      const tx = _db.transaction('items', 'readwrite');
+      const req = tx.objectStore('items').add(record);
+      req.onsuccess = () => res(req.result);
+      req.onerror = () => rej(req.error);
+    });
+  }
+
+  function dbGetAll() {
+    return new Promise((res, rej) => {
+      const tx = _db.transaction('items', 'readonly');
+      const req = tx.objectStore('items').getAll();
+      req.onsuccess = () => res(req.result);
+      req.onerror = () => rej(req.error);
+    });
+  }
+
+  function dbUpdate(id, changes) {
+    return new Promise((res, rej) => {
+      const tx = _db.transaction('items', 'readwrite');
+      const store = tx.objectStore('items');
+      const req = store.get(id);
+      req.onsuccess = () => {
+        const putReq = store.put(Object.assign({}, req.result, changes));
+        putReq.onsuccess = () => res();
+        putReq.onerror = () => rej(putReq.error);
+      };
+      req.onerror = () => rej(req.error);
+    });
+  }
+
+  function dbDelete(id) {
+    return new Promise((res, rej) => {
+      const tx = _db.transaction('items', 'readwrite');
+      const req = tx.objectStore('items').delete(id);
+      req.onsuccess = () => res();
+      req.onerror = () => rej(req.error);
+    });
+  }
+
+  async function loadHistory() {
+    try {
+      await openDB();
+      const records = await dbGetAll();
+      records.sort((a, b) => b.timestamp - a.timestamp);
+      for (const r of records) {
+        const st = r.status || 'completed';
+        if (r.type === 't2i' || r.type === 'i2i') {
+          if (st === 'completed' && r.resultBlob) {
+            imageQueue.push({
+              status: 'completed',
+              sourceThumbUrl: r.sourceThumbBlob ? URL.createObjectURL(r.sourceThumbBlob) : null,
+              resultBlobUrl: URL.createObjectURL(r.resultBlob),
+              filename: r.filename,
+              dbId: r.id,
+            });
+          } else if (st === 'pending' || st === 'interrupted') {
+            // 画像生成はサーバー側キューがなく再開不可 — 未完了レコードを削除
+            dbDelete(r.id).catch(() => {});
+          }
+        } else if (r.type === 'i2v') {
+          if (st === 'completed' && r.videoBlob) {
+            i2vQueue.push({
+              thumbUrl: URL.createObjectURL(r.thumbBlob),
+              resolution: r.resolution,
+              duration: r.duration,
+              status: 'completed',
+              downloadUrl: URL.createObjectURL(r.videoBlob),
+              filename: r.filename,
+              queueId: r.queueId || null,
+              dbId: r.id,
+              polling: false,
+            });
+          } else if (st === 'pending' && r.queueId) {
+            i2vQueue.push({
+              thumbUrl: URL.createObjectURL(r.thumbBlob),
+              resolution: r.resolution,
+              duration: r.duration,
+              status: 'pending',
+              downloadUrl: r.downloadUrl || null,
+              filename: null,
+              queueId: r.queueId,
+              dbId: r.id,
+              polling: false,
+            });
+          } else if (st === 'failed') {
+            i2vQueue.push({
+              thumbUrl: URL.createObjectURL(r.thumbBlob),
+              resolution: r.resolution,
+              duration: r.duration,
+              status: 'failed',
+              downloadUrl: null,
+              filename: null,
+              queueId: r.queueId || null,
+              errorMsg: r.errorMsg || null,
+              dbId: r.id,
+              polling: false,
+            });
+          }
+        }
+      }
+      renderGallery();
+      renderI2VQueue();
+    } catch (e) {
+      console.error('loadHistory failed', e);
+    }
+  }
+
+  async function saveI2VToDB(item) {
+    const videoBlob = await fetch(item.downloadUrl).then(r => r.blob());
+    const filename = datetimeFilename('.mp4');
+    item.filename = filename;
+    item.downloadUrl = URL.createObjectURL(videoBlob);
+    if (_db) {
+      if (item.dbId) {
+        await dbUpdate(item.dbId, { status: 'completed', filename, videoBlob });
+      } else {
+        const thumbBlob = await fetch(item.thumbUrl).then(r => r.blob());
+        item.dbId = await dbAdd({
+          type: 'i2v', timestamp: Date.now(), status: 'completed',
+          filename, thumbBlob, videoBlob,
+          resolution: item.resolution, duration: item.duration, queueId: item.queueId,
+        });
+      }
+    }
+  }
+
   // ---------- Mode ----------
   let selectedMode = 'i2i';
   const promptByMode = { t2i: '', i2i: '', i2v: '' };
@@ -556,6 +818,7 @@
   };
 
   function setMode(mode) {
+    if (selectionMode) exitSelectionMode();
     // save current state
     promptByMode[selectedMode] = document.getElementById('prompt').value;
     if (selectedMode === 'i2i' || selectedMode === 'i2v') {
@@ -685,6 +948,153 @@
     }
   }
 
+  // ---------- Selection mode ----------
+  let selectionMode = false;
+  let deleteConfirmPending = false;
+  let deleteConfirmTimer = null;
+
+  function toggleSelectionMode() {
+    if (selectionMode) { exitSelectionMode(); } else { enterSelectionMode(); }
+  }
+
+  function enterSelectionMode() {
+    selectionMode = true;
+    deleteConfirmPending = false;
+    if (selectedMode === 'i2v') { renderI2VQueue(); } else { renderGallery(); }
+    updateSelectionUI();
+  }
+
+  function exitSelectionMode() {
+    selectionMode = false;
+    deleteConfirmPending = false;
+    imageQueue.forEach(i => { i.selected = false; });
+    i2vQueue.forEach(i => { i.selected = false; });
+    clearTimeout(deleteConfirmTimer);
+    deleteConfirmTimer = null;
+    ['hist-del-btn', 'i2v-del-btn'].forEach(id => {
+      const btn = document.getElementById(id);
+      if (btn) { btn.textContent = '削除 ✘'; btn.classList.remove('confirm'); }
+    });
+    updateSelectionUI();
+    if (selectedMode === 'i2v') { renderI2VQueue(); } else { renderGallery(); }
+  }
+
+  function updateSelectionUI() {
+    const isI2V = selectedMode === 'i2v';
+    const prefix = isI2V ? 'i2v' : 'hist';
+    const queue = isI2V ? i2vQueue : imageQueue;
+
+    const selected = queue.filter(i => i.selected);
+    const saveable = selected.filter(i => i.status === 'completed');
+    const allSelected = queue.length > 0 && selected.length === queue.length;
+
+    const countEl = document.getElementById(prefix + '-sel-count');
+    if (countEl) countEl.textContent = selected.length > 0 ? '　' + selected.length + '件選択中' : '';
+
+    const toggleBtn = document.getElementById(prefix + '-toggle-btn');
+    if (toggleBtn) toggleBtn.textContent = selectionMode ? '中止' : '選択';
+
+    const actionBar = document.getElementById(prefix + '-action-bar');
+    if (actionBar) actionBar.hidden = !selectionMode;
+
+    if (!selectionMode) return;
+
+    const allBtn = document.getElementById(prefix + '-all-btn');
+    if (allBtn) allBtn.textContent = allSelected ? '全解除 ☐' : '全選択 ☑';
+
+    const saveBtn = document.getElementById(prefix + '-save-btn');
+    if (saveBtn) saveBtn.disabled = saveable.length === 0;
+
+    const delBtn = document.getElementById(prefix + '-del-btn');
+    if (delBtn) {
+      delBtn.disabled = selected.length === 0;
+      if (selected.length === 0 && deleteConfirmPending) {
+        deleteConfirmPending = false;
+        delBtn.textContent = '削除 ✘';
+        delBtn.classList.remove('confirm');
+      }
+    }
+  }
+
+  function toggleItemSelection(item) {
+    item.selected = !item.selected;
+    if (selectedMode === 'i2v') { renderI2VQueue(); } else { renderGallery(); }
+    updateSelectionUI();
+  }
+
+  function toggleSelectAll() {
+    const queue = selectedMode === 'i2v' ? i2vQueue : imageQueue;
+    const allSelected = queue.length > 0 && queue.every(i => i.selected);
+    queue.forEach(i => { i.selected = !allSelected; });
+    if (selectedMode === 'i2v') { renderI2VQueue(); } else { renderGallery(); }
+    updateSelectionUI();
+  }
+
+  async function saveSelected() {
+    const isI2V = selectedMode === 'i2v';
+    const queue = isI2V ? i2vQueue : imageQueue;
+    const items = queue.filter(i => i.selected && i.status === 'completed');
+    if (items.length === 0) return;
+
+    if (items.length === 1) {
+      const item = items[0];
+      const url = isI2V ? item.downloadUrl : item.resultBlobUrl;
+      const a = document.createElement('a');
+      a.href = url; a.download = item.filename; a.click();
+      return;
+    }
+
+    const zip = new JSZip();
+    for (const item of items) {
+      const url = isI2V ? item.downloadUrl : item.resultBlobUrl;
+      const blob = await fetch(url).then(r => r.blob());
+      zip.file(item.filename, blob);
+    }
+    const d = new Date(), pad = n => String(n).padStart(2, '0');
+    const dateStr = String(d.getFullYear()) + pad(d.getMonth()+1) + pad(d.getDate());
+    const zipBlob = await zip.generateAsync({ type: 'blob' });
+    const url = URL.createObjectURL(zipBlob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'V_' + dateStr + '.zip'; a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  }
+
+  function handleDeleteSelected() {
+    const queue = selectedMode === 'i2v' ? i2vQueue : imageQueue;
+    if (queue.filter(i => i.selected).length === 0) return;
+    const prefix = selectedMode === 'i2v' ? 'i2v' : 'hist';
+    const delBtn = document.getElementById(prefix + '-del-btn');
+    if (!deleteConfirmPending) {
+      deleteConfirmPending = true;
+      delBtn.textContent = 'OK? ✘';
+      delBtn.classList.add('confirm');
+      deleteConfirmTimer = setTimeout(() => {
+        deleteConfirmPending = false;
+        deleteConfirmTimer = null;
+        delBtn.textContent = '削除 ✘';
+        delBtn.classList.remove('confirm');
+      }, 3000);
+    } else {
+      clearTimeout(deleteConfirmTimer);
+      deleteConfirmTimer = null;
+      deleteConfirmPending = false;
+      const isI2V = selectedMode === 'i2v';
+      const q = isI2V ? i2vQueue : imageQueue;
+      const toDelete = q.filter(i => i.selected);
+      for (const item of toDelete) {
+        if (item.polling !== undefined) item.polling = false;
+        if (item.resultBlobUrl) URL.revokeObjectURL(item.resultBlobUrl);
+        if (item.sourceThumbUrl) URL.revokeObjectURL(item.sourceThumbUrl);
+        if (item.thumbUrl) URL.revokeObjectURL(item.thumbUrl);
+        if (item.downloadUrl && item.downloadUrl.startsWith('blob:')) URL.revokeObjectURL(item.downloadUrl);
+        if (_db && item.dbId) dbDelete(item.dbId).catch(() => {});
+        const idx = q.indexOf(item);
+        if (idx !== -1) q.splice(idx, 1);
+      }
+      exitSelectionMode();
+    }
+  }
+
   // ---------- Image Queue ----------
   const imageQueue = [];
 
@@ -693,13 +1103,16 @@
     grid.innerHTML = '';
     imageQueue.forEach((item, idx) => {
       const wrap = document.createElement('div');
-      wrap.className = 'gallery-item-wrap';
+      let cls = 'gallery-item-wrap';
+      if (selectionMode) cls += ' selectable';
+      if (item.selected) cls += ' selected';
+      wrap.className = cls;
 
       if (item.status === 'completed') {
         const img = document.createElement('img');
         img.src = item.resultBlobUrl;
         img.className = 'gallery-thumb';
-        img.addEventListener('click', () => viewImageItem(idx));
+        if (!selectionMode) img.addEventListener('click', () => viewImageItem(idx));
         wrap.appendChild(img);
       } else {
         if (item.sourceThumbUrl) {
@@ -718,10 +1131,18 @@
         wrap.appendChild(label);
       }
 
+      if (selectionMode) {
+        wrap.addEventListener('click', () => toggleItemSelection(item));
+        const check = document.createElement('div');
+        check.className = 'sel-check';
+        wrap.appendChild(check);
+      }
+
       grid.appendChild(wrap);
     });
     document.getElementById('history-section').hidden =
       imageQueue.length === 0 || selectedMode === 'i2v';
+    if (selectionMode && selectedMode !== 'i2v') updateSelectionUI();
   }
 
   function viewImageItem(idx) {
@@ -759,7 +1180,16 @@
     list.innerHTML = '';
     i2vQueue.forEach(item => {
       const row = document.createElement('div');
-      row.className = 'i2v-queue-item';
+      row.className = 'i2v-queue-item' + (item.selected ? ' selected' : '');
+
+      if (selectionMode) {
+        row.style.cursor = 'pointer';
+        row.addEventListener('click', () => toggleItemSelection(item));
+        const check = document.createElement('div');
+        check.className = 'i2v-sel-check';
+        check.textContent = item.selected ? '✓' : '';
+        row.appendChild(check);
+      }
 
       const thumb = document.createElement('img');
       thumb.className = 'i2v-thumb';
@@ -771,18 +1201,51 @@
 
       let statusEl;
       if (item.status === 'completed') {
-        statusEl = document.createElement('button');
-        statusEl.className = 'i2v-status-done';
-        statusEl.textContent = '生成完了 →';
-        statusEl.addEventListener('click', () => openVideoResult(item));
+        if (selectionMode) {
+          statusEl = document.createElement('span');
+          statusEl.className = 'i2v-status-done';
+          statusEl.style.pointerEvents = 'none';
+          statusEl.textContent = '完了';
+        } else {
+          statusEl = document.createElement('button');
+          statusEl.className = 'i2v-status-done';
+          statusEl.textContent = '生成完了 →';
+          statusEl.addEventListener('click', () => openVideoResult(item));
+        }
       } else if (item.status === 'failed') {
         statusEl = document.createElement('span');
         statusEl.className = 'i2v-status-failed';
         statusEl.textContent = item.errorMsg ? 'エラー: ' + item.errorMsg : 'エラー';
+      } else if (!item.polling) {
+        if (selectionMode) {
+          statusEl = document.createElement('span');
+          statusEl.className = 'i2v-status-pending';
+          statusEl.textContent = '中断';
+        } else {
+          statusEl = document.createElement('div');
+          statusEl.style.cssText = 'display:flex;flex-direction:column;align-items:flex-end;gap:4px;';
+          const msg = document.createElement('span');
+          msg.style.cssText = 'font-size:0.75rem;color:var(--muted);';
+          msg.textContent = '中断されました';
+          const btn = document.createElement('button');
+          btn.className = 'i2v-status-done';
+          btn.textContent = '再開 →';
+          btn.addEventListener('click', () => resumeI2VPoll(item));
+          statusEl.appendChild(msg);
+          statusEl.appendChild(btn);
+        }
+      } else if (item._downloading) {
+        statusEl = document.createElement('span');
+        statusEl.className = 'i2v-status-pending';
+        statusEl.textContent = 'ダウンロード中...';
+      } else if (!item.queueId) {
+        statusEl = document.createElement('span');
+        statusEl.className = 'i2v-status-pending';
+        statusEl.textContent = '送信中...';
       } else {
         statusEl = document.createElement('span');
         statusEl.className = 'i2v-status-pending';
-        statusEl.textContent = item.pollStatus ? item.pollStatus + '...' : '生成待ち...';
+        statusEl.textContent = '生成待ち...';
       }
 
       row.appendChild(thumb);
@@ -792,6 +1255,7 @@
     });
     document.getElementById('i2v-queue-section').hidden =
       i2vQueue.length === 0 || selectedMode !== 'i2v';
+    if (selectionMode && selectedMode === 'i2v') updateSelectionUI();
   }
 
   async function startI2V(apiKey, prompt) {
@@ -804,6 +1268,7 @@
       status: 'pending',
       downloadUrl: null,
       queueId: null,
+      polling: true,
     };
     i2vQueue.unshift(item);
     renderI2VQueue();
@@ -832,15 +1297,26 @@
       item.queueId = data.queue_id;
       if (data.download_url) item.downloadUrl = data.download_url;
       renderI2VQueue();
+      // queue_id取得直後にDBへ保存
+      if (_db) try {
+        const thumbBlob = await fetch(item.thumbUrl).then(r => r.blob());
+        item.dbId = await dbAdd({
+          type: 'i2v', timestamp: Date.now(), status: 'pending',
+          filename: null, thumbBlob, videoBlob: null,
+          resolution: item.resolution, duration: item.duration,
+          queueId: item.queueId, downloadUrl: item.downloadUrl || null,
+        });
+      } catch (_) {}
       scheduleI2VPoll(item, apiKey);
     } catch (e) {
       item.status = 'failed';
+      item.polling = false;
       renderI2VQueue();
       showError(fmtError(e.message));
     }
   }
 
-  function scheduleI2VPoll(item, apiKey) {
+  function scheduleI2VPoll(item, apiKey, delay = 8000) {
     setTimeout(async () => {
       try {
         const res = await fetch('https://api.venice.ai/api/v1/video/retrieve', {
@@ -855,18 +1331,46 @@
         if (!res.ok) {
           if (res.status === 429) { scheduleI2VPoll(item, apiKey); return; }
           item.status = 'failed';
-          item.errorMsg = res.status + ' ' + txt.slice(0, 80);
+          item.polling = false;
+          item.errorMsg = (res.status === 404 || res.status === 410)
+            ? '期限切れ（キューが存在しません）'
+            : res.status + ' ' + txt.slice(0, 80);
+          if (_db && item.dbId) dbUpdate(item.dbId, { status: 'failed', errorMsg: item.errorMsg }).catch(() => {});
           renderI2VQueue();
           return;
         }
         const data = JSON.parse(txt);
         const st = (data.status || '').toUpperCase();
         if (st === 'COMPLETED') {
-          item.status = 'completed';
           if (data.download_url) item.downloadUrl = data.download_url;
+          if (!item.downloadUrl) {
+            item.status = 'failed';
+            item.polling = false;
+            item.errorMsg = '動画URLが取得できませんでした';
+            if (_db && item.dbId) dbUpdate(item.dbId, { status: 'failed', errorMsg: item.errorMsg }).catch(() => {});
+            renderI2VQueue();
+            return;
+          }
+          item._downloading = true;
           renderI2VQueue();
+          try {
+            await saveI2VToDB(item);
+            item._downloading = false;
+            item.status = 'completed';
+            item.polling = false;
+            renderI2VQueue();
+          } catch (e) {
+            item._downloading = false;
+            item.status = 'failed';
+            item.polling = false;
+            item.errorMsg = '動画のダウンロードに失敗しました';
+            if (_db && item.dbId) dbUpdate(item.dbId, { status: 'failed', errorMsg: item.errorMsg }).catch(() => {});
+            renderI2VQueue();
+          }
         } else if (st === 'FAILED' || st === 'ERROR') {
           item.status = 'failed';
+          item.polling = false;
+          if (_db && item.dbId) dbUpdate(item.dbId, { status: 'failed' }).catch(() => {});
           renderI2VQueue();
         } else {
           item.pollStatus = st;
@@ -881,7 +1385,7 @@
 
   function openVideoResult(item) {
     document.getElementById('result-video').src = item.downloadUrl;
-    S.resultFilename = datetimeFilename('.mp4');
+    S.resultFilename = item.filename || datetimeFilename('.mp4');
     showView('view-result-video');
   }
 
@@ -902,6 +1406,15 @@
     video.pause();
     video.src = '';
     showView('view-input');
+  }
+
+  function resumeI2VPoll(item) {
+    const apiKey = document.getElementById('api-key').value.trim();
+    if (!apiKey) { showError('再開するにはAPIキーを入力してください'); return; }
+    hideError();
+    item.polling = true;
+    renderI2VQueue();
+    scheduleI2VPoll(item, apiKey, 0);
   }
 
   // ---------- File handling ----------
@@ -1043,9 +1556,14 @@
 
   async function sendImageRequest(apiKey, prompt) {
     const mode = selectedMode;
-    const item = { status: 'pending', sourceThumbUrl: null, resultBlobUrl: null, filename: '' };
+    const item = { status: 'pending', sourceThumbUrl: null, resultBlobUrl: null, filename: '', dbId: null };
     imageQueue.unshift(item);
     renderGallery();
+
+    // 送信直後にpendingレコードをDBへ保存
+    if (_db) try {
+      item.dbId = await dbAdd({ type: mode, timestamp: Date.now(), status: 'pending', filename: '', resultBlob: null, sourceThumbBlob: null });
+    } catch (_) {}
 
     if (mode === 'i2i' && S.rawFile) {
       makeThumbUrl(S.rawFile).then(url => { item.sourceThumbUrl = url; renderGallery(); });
@@ -1063,12 +1581,21 @@
         blob = await callVeniceI2I(apiKey, b64, mime, prompt);
         const _ext = blob.type === 'image/png' ? '.png' : blob.type === 'image/webp' ? '.webp' : '.jpg';
         const _stem = S.imageFilename ? S.imageFilename.replace(/\.[^.]+$/, '') : 'image';
-        item.filename = _stem + 'Vedit' + _ext;
+        const _d = new Date(), _p = n => String(n).padStart(2, '0');
+        const _time = _p(_d.getHours()) + _p(_d.getMinutes()) + _p(_d.getSeconds());
+        item.filename = _stem + _time + _ext;
       }
       item.resultBlobUrl = URL.createObjectURL(blob);
       item.status = 'completed';
       renderGallery();
+      // 完了時にDBレコードを更新
+      if (_db && item.dbId) try {
+        const sourceThumbBlob = item.sourceThumbUrl ? await fetch(item.sourceThumbUrl).then(r => r.blob()) : null;
+        await dbUpdate(item.dbId, { status: 'completed', filename: item.filename, resultBlob: blob, sourceThumbBlob });
+      } catch (_) {}
     } catch (e) {
+      // APIエラー時はDBレコードを削除してキューからも除去
+      if (_db && item.dbId) dbDelete(item.dbId).catch(() => {});
       imageQueue.splice(imageQueue.indexOf(item), 1);
       renderGallery();
       showError(fmtError(e.message));
@@ -1186,6 +1713,8 @@
   function hideError() {
     document.getElementById('error-box').hidden = true;
   }
+
+  loadHistory();
 </script>
 </body>
 </html>
