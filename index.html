@@ -1044,7 +1044,7 @@
     if (countEl) countEl.textContent = selected.length > 0 ? '　' + selected.length + '件選択中' : '';
 
     const toggleBtn = document.getElementById(prefix + '-toggle-btn');
-    if (toggleBtn) toggleBtn.textContent = selectionMode ? '中止' : '選択';
+    if (toggleBtn) toggleBtn.textContent = selectionMode ? 'やめる' : '選択';
 
     const actionBar = document.getElementById(prefix + '-action-bar');
     if (actionBar) actionBar.hidden = !selectionMode;
