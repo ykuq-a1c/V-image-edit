@@ -458,6 +458,38 @@
     }
     .btn-row .btn { flex: 1; }
 
+    /* Prompt display */
+    .result-prompt-box {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 12px;
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+    }
+    .result-prompt-text {
+      flex: 1;
+      font-size: 0.82rem;
+      color: var(--muted);
+      line-height: 1.55;
+      word-break: break-all;
+      font-family: 'Menlo', 'Consolas', monospace;
+    }
+    .result-prompt-copy {
+      flex-shrink: 0;
+      padding: 3px 9px;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--muted);
+      font-size: 0.75rem;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .result-prompt-copy:hover { background: var(--border); color: var(--text); }
+
     /* Error */
     .error {
       background: var(--danger-bg);
@@ -546,7 +578,10 @@
 
       <!-- Prompt -->
       <div class="card">
-        <div class="label">プロンプト</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <div class="label">プロンプト</div>
+          <button class="sel-toggle-btn" onclick="clearPrompt()">クリア</button>
+        </div>
         <textarea id="prompt" placeholder="例: Make the background a snowy mountain landscape"></textarea>
       </div>
 
@@ -637,7 +672,15 @@
       <div class="card">
         <img id="result-img" src="" alt="result">
       </div>
+      <div class="result-prompt-box" id="img-prompt-box" hidden>
+        <span class="result-prompt-text" id="img-prompt-text"></span>
+        <button class="result-prompt-copy" onclick="copyPrompt(this)">コピー</button>
+      </div>
       <button class="btn btn-primary" onclick="saveResult()">ダウンロード</button>
+      <div class="btn-row" id="btn-row-edit-history" hidden>
+        <button class="btn btn-secondary" onclick="editFromHistoryAs('i2i')">この画像から編集</button>
+        <button class="btn btn-secondary" onclick="editFromHistoryAs('i2v')">この画像から動画に</button>
+      </div>
       <button class="btn btn-secondary" id="btn-back-history" onclick="goBackFromHistory()" hidden>戻る</button>
       <button class="btn btn-secondary" id="btn-back-t2i" onclick="goBackT2I()" hidden>生成画面に戻る</button>
       <div class="btn-row" id="btn-row-i2i">
@@ -652,6 +695,10 @@
     <div style="display:flex;flex-direction:column;gap:14px;">
       <div class="card" style="padding:0;overflow:hidden;">
         <video id="result-video" controls style="width:100%;display:block;border-radius:var(--radius);"></video>
+      </div>
+      <div class="result-prompt-box" id="vid-prompt-box" hidden>
+        <span class="result-prompt-text" id="vid-prompt-text"></span>
+        <button class="result-prompt-copy" onclick="copyPrompt(this)">コピー</button>
       </div>
       <button class="btn btn-primary" onclick="downloadVideo()">ダウンロード</button>
       <button class="btn btn-secondary" onclick="goBackFromVideo()">生成画面に戻る</button>
@@ -732,6 +779,7 @@
               resultBlobUrl: URL.createObjectURL(r.resultBlob),
               filename: r.filename,
               dbId: r.id,
+              prompt: r.prompt || '',
             });
           } else if (st === 'pending' || st === 'interrupted') {
             // 画像生成はサーバー側キューがなく再開不可 — 未完了レコードを削除
@@ -749,6 +797,7 @@
               queueId: r.queueId || null,
               dbId: r.id,
               polling: false,
+              prompt: r.prompt || '',
             });
           } else if (st === 'pending' && r.queueId) {
             i2vQueue.push({
@@ -761,6 +810,7 @@
               queueId: r.queueId,
               dbId: r.id,
               polling: false,
+              prompt: r.prompt || '',
             });
           } else if (st === 'failed') {
             i2vQueue.push({
@@ -774,6 +824,7 @@
               errorMsg: r.errorMsg || null,
               dbId: r.id,
               polling: false,
+              prompt: r.prompt || '',
             });
           }
         }
@@ -942,9 +993,10 @@
     });
     if (id === 'view-result') {
       const isT2I = selectedMode === 't2i';
-      document.getElementById('btn-back-history').hidden = !viewingFromHistory;
-      document.getElementById('btn-back-t2i').hidden     = viewingFromHistory || !isT2I;
-      document.getElementById('btn-row-i2i').hidden      = viewingFromHistory || isT2I;
+      document.getElementById('btn-row-edit-history').hidden  = !viewingFromHistory;
+      document.getElementById('btn-back-history').hidden      = !viewingFromHistory;
+      document.getElementById('btn-back-t2i').hidden          = viewingFromHistory || !isT2I;
+      document.getElementById('btn-row-i2i').hidden           = viewingFromHistory || isT2I;
     }
   }
 
@@ -1151,12 +1203,40 @@
     S.resultBlobUrl  = item.resultBlobUrl;
     S.resultFilename = item.filename;
     document.getElementById('result-img').src = item.resultBlobUrl;
+    const p = item.prompt || '';
+    document.getElementById('img-prompt-text').textContent = p;
+    document.getElementById('img-prompt-box').hidden = !p;
     viewingFromHistory = true;
     showView('view-result');
   }
 
+  async function copyPrompt(btn) {
+    const text = btn.previousElementSibling.textContent;
+    try {
+      await navigator.clipboard.writeText(text);
+      const orig = btn.textContent;
+      btn.textContent = '✓';
+      setTimeout(() => { btn.textContent = orig; }, 1200);
+    } catch (_) {}
+  }
+
   function goBackFromHistory() {
     viewingFromHistory = false;
+    showView('view-input');
+  }
+
+  async function editFromHistoryAs(mode) {
+    const res = await fetch(S.resultBlobUrl);
+    const blob = await res.blob();
+    const filename = S.resultFilename || 'image.jpg';
+    const file = new File([blob], filename, { type: blob.type });
+    const previewUrl = URL.createObjectURL(blob);
+    viewingFromHistory = false;
+    setMode(mode);  // 先に実行して現stateの保存/復元を終わらせる
+    S.rawFile = file;
+    S.imagePreviewUrl = previewUrl;
+    S.imageFilename = filename;
+    restoreImagePreview(previewUrl, filename);
     showView('view-input');
   }
 
@@ -1269,6 +1349,7 @@
       downloadUrl: null,
       queueId: null,
       polling: true,
+      prompt,
     };
     i2vQueue.unshift(item);
     renderI2VQueue();
@@ -1305,6 +1386,7 @@
           filename: null, thumbBlob, videoBlob: null,
           resolution: item.resolution, duration: item.duration,
           queueId: item.queueId, downloadUrl: item.downloadUrl || null,
+          prompt: item.prompt || '',
         });
       } catch (_) {}
       scheduleI2VPoll(item, apiKey);
@@ -1386,6 +1468,9 @@
   function openVideoResult(item) {
     document.getElementById('result-video').src = item.downloadUrl;
     S.resultFilename = item.filename || datetimeFilename('.mp4');
+    const p = item.prompt || '';
+    document.getElementById('vid-prompt-text').textContent = p;
+    document.getElementById('vid-prompt-box').hidden = !p;
     showView('view-result-video');
   }
 
@@ -1556,13 +1641,13 @@
 
   async function sendImageRequest(apiKey, prompt) {
     const mode = selectedMode;
-    const item = { status: 'pending', sourceThumbUrl: null, resultBlobUrl: null, filename: '', dbId: null };
+    const item = { status: 'pending', sourceThumbUrl: null, resultBlobUrl: null, filename: '', dbId: null, prompt };
     imageQueue.unshift(item);
     renderGallery();
 
     // 送信直後にpendingレコードをDBへ保存
     if (_db) try {
-      item.dbId = await dbAdd({ type: mode, timestamp: Date.now(), status: 'pending', filename: '', resultBlob: null, sourceThumbBlob: null });
+      item.dbId = await dbAdd({ type: mode, timestamp: Date.now(), status: 'pending', filename: '', resultBlob: null, sourceThumbBlob: null, prompt });
     } catch (_) {}
 
     if (mode === 'i2i' && S.rawFile) {
@@ -1695,6 +1780,11 @@
     restoreImagePreview(S.imagePreviewUrl, S.imageFilename);
     document.getElementById('prompt').value = S.prompt;
     showView('view-input');
+  }
+
+  function clearPrompt() {
+    document.getElementById('prompt').value = '';
+    promptByMode[selectedMode] = '';
   }
 
   function datetimeFilename(ext) {
